@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import os
+import re
 
 import torch
 import torch.nn as nn
@@ -24,6 +25,8 @@ from src.tokenization import BertTokenizer
 from src.modeling import LXRTFeatureExtraction as VisualBertForLXRFeature, VISUAL_CONFIG
 from src.modeling import VBFeatureExtraction as VBE
 from src.modeling import UniterFeatureExtraction as UFE
+
+from transformers import AutoTokenizer,AutoModel
 
 
 class InputFeatures(object):
@@ -164,8 +167,40 @@ class VBEncoder(nn.Module):
                 "bert-base-uncased",
                 do_lower_case=True
             )
+        self.tokenizer = AutoTokenizer.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
         self.model = VBE.from_pretrained(
                 "bert-base-uncased")
+
+        tmp_bluebert = AutoModel.from_pretrained("emilyalsentzer/Bio_ClinicalBERT")
+
+        model_weight=self.model.state_dict()
+        bluebert_weight = tmp_bluebert.state_dict()
+
+        pattern = re.compile(
+            r'^(.*denselayer\d+\.(?:norm|relu|conv))\.((?:[12])\.(?:weight|bias|running_mean|running_var))$')
+        #checkpoint = torch.load(CKPT_PATH)
+        #state_dict = checkpoint['state_dict']
+        print('blueBERT',list(bluebert_weight.keys()))
+        print('vb',list(model_weight.keys()))
+        
+        for key in list(bluebert_weight.keys()):
+          if key=='embeddings.position_ids':
+            del bluebert_weight[key]
+          if key!='embeddings.position_ids':
+            new_key = 'bert.'+key
+            bluebert_weight[new_key] = bluebert_weight[key]
+            del bluebert_weight[key]
+          
+        bluebert_weight['bert.embeddings.projection.weight']=model_weight['bert.embeddings.projection.weight']
+        bluebert_weight['bert.embeddings.position_embeddings_visual.weight']=model_weight['bert.embeddings.position_embeddings_visual.weight']
+        bluebert_weight['bert.embeddings.projection.bias']=model_weight['bert.embeddings.projection.bias']
+        bluebert_weight['bert.embeddings.token_type_embeddings_visual.weight']=model_weight['bert.embeddings.token_type_embeddings_visual.weight']
+        
+        print('blueBERT1',list(bluebert_weight.keys()))
+        print('vb2',list(model_weight.keys()))
+        
+        self.model.bert.embeddings.word_embeddings = nn.Embedding(28996, 768)
+        self.model.load_state_dict(bluebert_weight)
         if args.from_scratch:
             print("initializing all the weights")
             self.model.apply(self.model.init_bert_weights)
@@ -182,7 +217,7 @@ class VBEncoder(nn.Module):
         input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long).cuda()
         input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long).cuda()
         segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long).cuda()
-        assert feats.shape[1] == 36 , "Not Using 36 ROIs, please change the following 2 lines"
+        #assert feats.shape[1] == 36 , "Not Using 36 ROIs, please change the following 2 lines"
         visual_segment_ids = torch.ones(input_ids.shape[0],feats.shape[1],dtype=torch.long).cuda()
         v_mask = torch.ones(input_mask.shape[0],feats.shape[1],dtype=torch.long).cuda()
         
