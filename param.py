@@ -76,7 +76,7 @@ def parse_args():
     parser.add_argument("--numWorkers", dest='num_workers', default=0)
 
     # Parse the arguments.
-    args = parser.parse_args()
+    args = parser.parse_args([])
 
     # Bind optimizer class.
     args.optimizer = get_optimizer(args.optim)
