@@ -228,11 +228,9 @@ class VBEncoder(nn.Module):
         return output
     
     def load(self,path):
-        state_dict = torch.load(path)
+        state_dict = torch.load(path, map_location='cpu')
         new_state_dict = {}
-        print("Load VISUALBERT PreTrained Model from %s"%path)
         for key, value in state_dict.items():
-
 
             if key.startswith("bert."):
                 new_state_dict[key[len("bert."):]] = value
@@ -240,6 +238,9 @@ class VBEncoder(nn.Module):
                 new_state_dict[key] = value
 
         state_dict = new_state_dict
+        # change word embbeding in state_dict to 28996
+        state_dict['bert.embeddings.word_embeddings.weight']=state_dict['bert.embeddings.word_embeddings.weight'][:28996,:]
+        print("Load VISUALBERT PreTrained Model from %s"%path)
         load_keys = set(state_dict.keys())
         model_keys = set(self.model.state_dict().keys())
         print()
@@ -305,6 +306,7 @@ class UniterEncoder(nn.Module):
         print("Load UNITER PreTrained Model from %s"%path)
         load_keys = set(state_dict.keys())
         model_keys = set(self.model.state_dict().keys())
+        print(state_dict)
         print()
         print("Weights in loaded but not in model:")
         for key in sorted(load_keys.difference(model_keys)):
